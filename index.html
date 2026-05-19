@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Tracker — Live</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+/* ── THEME VARIABLES ────────────────────── */
+:root {
+  --bg:#f8f9fa; --bg2:#fff; --bg3:#f1f5f9; --border:#e2e8f0;
+  --text:#1a1a2e; --text2:#334155; --text3:#64748b; --text4:#94a3b8;
+  --hover:#f8fafc;
+  --hdr1:#1a1a2e; --hdr2:#16213e; --hdr3:#0f3460;
+  --card-bg:#fff; --card-border:#e2e8f0;
+  --alert-bull-bg:#f0fdf4; --alert-bull-bd:#bbf7d0;
+  --alert-bear-bg:#fef2f2; --alert-bear-bd:#fecaca;
+  --alert-unc-bg:#fffbeb; --alert-unc-bd:#fde68a;
+  --disc-bg:#fefce8; --disc-bd:#fde68a; --disc-text:#854d0e;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg:#0d1117; --bg2:#161b22; --bg3:#21262d; --border:#30363d;
+  --text:#c9d1d9; --text2:#b1bac4; --text3:#8b949e; --text4:#6e7681;
+  --hover:#1c2128;
+  --hdr1:#0d1117; --hdr2:#161b22; --hdr3:#1a2332;
+  --card-bg:#161b22; --card-border:#30363d;
+  --alert-bull-bg:#0d2818; --alert-bull-bd:#1a4731;
+  --alert-bear-bg:#3d1214; --alert-bear-bd:#5c1d1f;
+  --alert-unc-bg:#2d1b00; --alert-unc-bd:#4d3000;
+  --disc-bg:#1c1200; --disc-bd:#4d3000; --disc-text:#d29922;
+  color-scheme: dark;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; transition:background .3s,color .3s; }
+
+/* ── HEADER ─────────────────────────────── */
+.header { background:linear-gradient(135deg,var(--hdr1) 0%,var(--hdr2) 50%,var(--hdr3) 100%); color:#fff; padding:24px 20px 20px; }
+.header h1 { font-size:22px; font-weight:700; margin-bottom:2px; }
+.header .sub { font-size:13px; opacity:.7; }
+.hdr-row { display:flex; justify-content:space-between; align-items:center; }
+.kpi-row { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+.kpi { background:rgba(255,255,255,.1); border-radius:10px; padding:12px 16px; min-width:120px; flex:1; }
+.kpi .label { font-size:11px; text-transform:uppercase; letter-spacing:.5px; opacity:.65; }
+.kpi .value { font-size:22px; font-weight:700; margin-top:2px; }
+.up { color:#4ade80; } .down { color:#f87171; }
+
+/* ── THEME TOGGLE ───────────────────────── */
+.theme-toggle { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); color:#fff; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center; transition:.2s; flex-shrink:0; }
+.theme-toggle:hover { background:rgba(255,255,255,.3); }
+
+/* ── REFRESH BAR ────────────────────────── */
+.refresh-bar { display:flex; align-items:center; gap:10px; margin-top:14px; }
+.btn-refresh { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); color:#fff; padding:7px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:.2s; }
+.btn-refresh:hover { background:rgba(255,255,255,.25); }
+.btn-refresh:disabled { opacity:.5; cursor:wait; }
+.status-dot { width:8px; height:8px; border-radius:50%; }
+.dot-live { background:#4ade80; box-shadow:0 0 6px #4ade80; }
+.dot-cached { background:#fbbf24; }
+.dot-error { background:#f87171; }
+.status-text { font-size:11px; opacity:.7; }
+
+/* ── TABS ───────────────────────────────── */
+.tabs { display:flex; border-bottom:2px solid var(--border); background:var(--bg2); position:sticky; top:0; z-index:10; overflow-x:auto; transition:background .3s; }
+.tab { padding:12px 20px; font-size:13px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; color:var(--text3); transition:.15s; white-space:nowrap; }
+.tab:hover { color:var(--text); }
+.tab.active { color:#2563eb; border-bottom-color:#2563eb; }
+.panel { display:none; padding:16px 20px 24px; }
+.panel.active { display:block; }
+
+/* ── TABLES ─────────────────────────────── */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th { position:sticky; top:45px; background:var(--bg3); text-align:left; padding:8px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text3); border-bottom:2px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap; transition:background .3s; }
+thead th:hover { color:var(--text); }
+thead th .sa { font-size:10px; margin-left:3px; opacity:.4; }
+thead th.sorted .sa { opacity:1; color:#2563eb; }
+td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:middle; transition:background .3s; }
+tr:hover td { background:var(--hover); }
+tr.clickable { cursor:pointer; }
+.ticker { font-weight:700; color:var(--text); }
+.ticker-sub { font-size:11px; color:var(--text4); display:block; }
+.click-hint { font-size:10px; color:var(--text4); opacity:0; transition:.15s; }
+tr.clickable:hover .click-hint { opacity:1; }
+
+/* ── BADGES ─────────────────────────────── */
+.badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:600; }
+.b-buy { background:#dcfce7; color:#166534; } .b-hold { background:#fef9c3; color:#854d0e; }
+.b-sell { background:#fee2e2; color:#991b1b; } .b-trim { background:#ffedd5; color:#9a3412; }
+.b-wait { background:#e0e7ff; color:#3730a3; } .b-avoid { background:#fce7f3; color:#9d174d; }
+[data-theme="dark"] .b-buy { background:#0d2818; color:#4ade80; }
+[data-theme="dark"] .b-hold { background:#2d1b00; color:#fbbf24; }
+[data-theme="dark"] .b-sell { background:#3d1214; color:#f87171; }
+[data-theme="dark"] .b-trim { background:#3d1a00; color:#fb923c; }
+[data-theme="dark"] .b-wait { background:#1e1b4b; color:#818cf8; }
+[data-theme="dark"] .b-avoid { background:#3b0a2a; color:#f472b6; }
+.risk-low { background:#dcfce7; color:#166534; } .risk-mod { background:#fef9c3; color:#854d0e; }
+.risk-high { background:#fee2e2; color:#991b1b; } .risk-vhigh { background:#fecaca; color:#7f1d1d; }
+[data-theme="dark"] .risk-low { background:#0d2818; color:#4ade80; }
+[data-theme="dark"] .risk-mod { background:#2d1b00; color:#fbbf24; }
+[data-theme="dark"] .risk-high { background:#3d1214; color:#f87171; }
+[data-theme="dark"] .risk-vhigh { background:#5c0a0a; color:#fca5a5; }
+.sc { display:inline-flex; width:28px; height:28px; align-items:center; justify-content:center; border-radius:50%; font-weight:700; font-size:12px; color:#fff; }
+.sc-g { background:#22c55e; } .sc-y { background:#eab308; } .sc-r { background:#ef4444; }
+
+/* ── CARDS & CHARTS ─────────────────────── */
+.charts-row { display:flex; gap:16px; flex-wrap:wrap; padding:16px 20px; }
+.chart-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; padding:16px; flex:1; min-width:280px; transition:background .3s; }
+.chart-card h3 { font-size:14px; margin-bottom:12px; color:var(--text2); }
+.sw-section { padding:0 20px; }
+.sw-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:12px; padding:16px; margin-bottom:16px; transition:background .3s; }
+
+/* ── ALERTS ──────────────────────────────── */
+.alert-card { border-radius:10px; padding:12px 16px; margin-bottom:8px; font-size:13px; }
+.alert-card.bullish { background:var(--alert-bull-bg); border:1px solid var(--alert-bull-bd); }
+.alert-card.bearish { background:var(--alert-bear-bg); border:1px solid var(--alert-bear-bd); }
+.alert-card.uncertain { background:var(--alert-unc-bg); border:1px solid var(--alert-unc-bd); }
+.alert-head { font-weight:700; margin-bottom:2px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; }
+.alert-date { font-size:11px; font-weight:400; color:var(--text3); background:var(--bg3); padding:2px 8px; border-radius:99px; }
+.countdown { font-size:11px; color:#2563eb; font-weight:600; margin-left:6px; }
+.disclaimer { margin:0 20px 20px; padding:12px 16px; background:var(--disc-bg); border:1px solid var(--disc-bd); border-radius:8px; font-size:11px; color:var(--disc-text); transition:background .3s; }
+
+/* ── STOCK DETAIL MODAL ─────────────────── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; display:none; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--card-bg); border:1px solid var(--card-border); border-radius:16px; max-width:560px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 25px 50px rgba(0,0,0,.25); transition:background .3s; }
+.modal-hdr { padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; }
+.modal-hdr h2 { font-size:24px; color:var(--text); }
+.modal-hdr .modal-sub { font-size:13px; color:var(--text3); }
+.modal-close { background:var(--bg3); border:none; color:var(--text3); width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center; transition:.15s; flex-shrink:0; }
+.modal-close:hover { background:var(--border); color:var(--text); }
+.modal-body { padding:16px 24px 24px; }
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.detail-item { background:var(--bg3); border-radius:10px; padding:10px 14px; transition:background .3s; }
+.detail-item .dl { font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text4); margin-bottom:2px; }
+.detail-item .dv { font-size:18px; font-weight:700; }
+.detail-item.full { grid-column:1/-1; }
+.detail-section { margin-top:16px; }
+.detail-section h4 { font-size:13px; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+.detail-note { background:var(--bg3); border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; color:var(--text2); }
+
+/* ── SUGGESTIONS ────────────────────────── */
+.sugg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; padding:0 20px 20px; }
+.sugg-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; padding:18px 20px; transition:background .3s,transform .15s,box-shadow .15s; cursor:default; }
+.sugg-card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.08); }
+[data-theme="dark"] .sugg-card:hover { box-shadow:0 6px 20px rgba(0,0,0,.3); }
+.sugg-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+.sugg-ticker { font-size:20px; font-weight:800; color:var(--text); }
+.sugg-name { font-size:12px; color:var(--text3); }
+.sugg-sector-tag { font-size:11px; padding:3px 10px; border-radius:99px; font-weight:600; background:#e0e7ff; color:#3730a3; }
+[data-theme="dark"] .sugg-sector-tag { background:#1e1b4b; color:#818cf8; }
+.sugg-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
+.sugg-stat { background:var(--bg3); border-radius:8px; padding:8px 10px; text-align:center; transition:background .3s; }
+.sugg-stat .sl { font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:var(--text4); }
+.sugg-stat .sv { font-size:16px; font-weight:700; margin-top:1px; }
+.sugg-why { font-size:13px; color:var(--text2); line-height:1.55; }
+.sugg-why strong { color:var(--text); }
+.sugg-gap { background:var(--bg3); border-radius:10px; padding:14px 18px; margin:0 20px 16px; font-size:13px; color:var(--text2); transition:background .3s; }
+.sugg-gap h3 { font-size:15px; color:var(--text); margin-bottom:6px; }
+.sugg-gap-tags { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.sugg-gap-tag { padding:4px 12px; border-radius:99px; font-size:12px; font-weight:600; background:#fee2e2; color:#991b1b; }
+[data-theme="dark"] .sugg-gap-tag { background:#3d1214; color:#f87171; }
+
+/* ── NEWS ───────────────────────────────── */
+.news-grid { display:flex; flex-direction:column; gap:12px; padding:0 20px 20px; }
+.news-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; padding:18px 20px; transition:background .3s; }
+.news-meta { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+.news-date { font-size:11px; color:var(--text4); }
+.news-impact { font-size:11px; font-weight:700; padding:2px 10px; border-radius:99px; }
+.impact-high { background:#fee2e2; color:#991b1b; }
+.impact-med { background:#fef9c3; color:#854d0e; }
+.impact-low { background:#dcfce7; color:#166534; }
+[data-theme="dark"] .impact-high { background:#3d1214; color:#f87171; }
+[data-theme="dark"] .impact-med { background:#2d1b00; color:#fbbf24; }
+[data-theme="dark"] .impact-low { background:#0d2818; color:#4ade80; }
+.news-headline { font-size:16px; font-weight:700; color:var(--text); margin-bottom:6px; line-height:1.35; }
+.news-body { font-size:13px; color:var(--text2); line-height:1.55; margin-bottom:10px; }
+.news-tickers { display:flex; gap:6px; flex-wrap:wrap; }
+.news-ticker-tag { font-size:11px; font-weight:700; padding:3px 10px; border-radius:99px; background:#dbeafe; color:#1e40af; cursor:pointer; transition:.15s; }
+.news-ticker-tag:hover { background:#bfdbfe; }
+[data-theme="dark"] .news-ticker-tag { background:#1e3a5f; color:#93c5fd; }
+[data-theme="dark"] .news-ticker-tag:hover { background:#1e4d8f; }
+.news-arrow { font-size:11px; margin-left:2px; }
+
+@media(max-width:640px) { .kpi-row{flex-direction:column;} .charts-row{flex-direction:column;} table{font-size:12px;} td,th{padding:6px 7px;} .detail-grid{grid-template-columns:1fr;} .modal{margin:10px;} .sugg-grid{grid-template-columns:1fr;} .sugg-stats{grid-template-columns:1fr 1fr;} }
+</style>
+</head>
+<body>
+
+<!-- ═══ MODAL ═══ -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><h2 id="m-ticker">—</h2><div class="modal-sub" id="m-name">—</div></div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="m-body"></div>
+  </div>
+</div>
+
+<!-- ═══ HEADER ═══ -->
+<div class="header">
+  <div class="hdr-row">
+    <h1>Portfolio Tracker</h1>
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
+      <span id="theme-icon">&#9790;</span>
+    </button>
+  </div>
+  <p class="sub">Jackson Johannes &bull; <span id="ts">—</span></p>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Portfolio Value</div><div class="value" id="kpi-val">—</div></div>
+    <div class="kpi"><div class="label">Day Change</div><div class="value" id="kpi-day">—</div></div>
+    <div class="kpi"><div class="label">Total Gain/Loss</div><div class="value" id="kpi-total">—</div></div>
+    <div class="kpi"><div class="label">Diversification</div><div class="value" style="color:#fbbf24;">C-</div></div>
+  </div>
+  <div class="refresh-bar">
+    <button class="btn-refresh" id="btn-refresh" onclick="fetchAllPrices()">Refresh Prices</button>
+    <span class="status-dot dot-cached" id="status-dot"></span>
+    <span class="status-text" id="status-text">Loading...</span>
+  </div>
+</div>
+
+<!-- ═══ TABS ═══ -->
+<div class="tabs">
+  <div class="tab active" data-tab="portfolio">Portfolio</div>
+  <div class="tab" data-tab="watchlist">Watchlist</div>
+  <div class="tab" data-tab="overview">Overview</div>
+  <div class="tab" data-tab="alerts">Alerts</div>
+  <div class="tab" data-tab="suggestions">Suggestions</div>
+  <div class="tab" data-tab="news">News</div>
+</div>
+
+<!-- ═══ PORTFOLIO ═══ -->
+<div class="panel active" id="panel-portfolio">
+<p style="font-size:12px;color:var(--text4);margin-bottom:8px;">Click any row to see full stock profile</p>
+<table id="tbl-p"><thead><tr>
+  <th data-col="ticker">Ticker <span class="sa">▲</span></th>
+  <th data-col="shares">Shares <span class="sa">▲</span></th>
+  <th data-col="alloc">Alloc% <span class="sa">▲</span></th>
+  <th data-col="value">Value <span class="sa">▲</span></th>
+  <th data-col="price">Price <span class="sa">▲</span></th>
+  <th data-col="change">Day Chg <span class="sa">▲</span></th>
+  <th data-col="costBasis">Cost Basis <span class="sa">▲</span></th>
+  <th data-col="gainLoss">Gain/Loss <span class="sa">▲</span></th>
+  <th data-col="target">Target <span class="sa">▲</span></th>
+  <th data-col="upside">Upside <span class="sa">▲</span></th>
+  <th data-col="riskN">Risk <span class="sa">▲</span></th>
+  <th data-col="score">Score <span class="sa">▲</span></th>
+  <th>Action</th>
+</tr></thead><tbody id="tb-p"></tbody></table>
+</div>
+
+<!-- ═══ WATCHLIST ═══ -->
+<div class="panel" id="panel-watchlist">
+<p style="font-size:12px;color:var(--text4);margin-bottom:8px;">Click any row to see full stock profile</p>
+<table id="tbl-w"><thead><tr>
+  <th data-col="ticker">Ticker <span class="sa">▲</span></th>
+  <th data-col="price">Price <span class="sa">▲</span></th>
+  <th data-col="change">Day Chg <span class="sa">▲</span></th>
+  <th data-col="target">Target <span class="sa">▲</span></th>
+  <th data-col="entryMid">Entry <span class="sa">▲</span></th>
+  <th data-col="vsEntry">vs Entry <span class="sa">▲</span></th>
+  <th data-col="upside">Upside <span class="sa">▲</span></th>
+  <th data-col="riskN">Risk <span class="sa">▲</span></th>
+  <th>Signal</th>
+  <th>Note</th>
+</tr></thead><tbody id="tb-w"></tbody></table>
+</div>
+
+<!-- ═══ OVERVIEW ═══ -->
+<div class="panel" id="panel-overview">
+<div class="charts-row">
+  <div class="chart-card" style="max-width:380px;"><h3>Sector Allocation</h3><canvas id="ch-sec" height="280"></canvas></div>
+  <div class="chart-card" style="max-width:380px;"><h3>Risk Distribution</h3><canvas id="ch-risk" height="280"></canvas></div>
+  <div class="chart-card"><h3>Scores (1-10)</h3><canvas id="ch-score" height="280"></canvas></div>
+</div>
+<div class="sw-section">
+  <div class="sw-card">
+    <h3 style="font-size:15px;">Strengths & Weaknesses</h3>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;">
+      <div style="flex:1;min-width:240px;">
+        <h4 style="color:#16a34a;">Strengths</h4>
+        <ul style="font-size:13px;padding-left:18px;color:var(--text2);"><li>~32% in low-cost index ETFs — solid foundation</li><li>NVDA & GOOGL are best-in-class anchors</li><li>Well-positioned for AI infrastructure decade</li></ul>
+      </div>
+      <div style="flex:1;min-width:240px;">
+        <h4 style="color:#dc2626;">Weaknesses</h4>
+        <ul style="font-size:13px;padding-left:18px;color:var(--text2);"><li>47% in AI/semis — sector rotation vulnerability</li><li>Zero healthcare, consumer, financials, or dividends</li><li>GRPN & QBTS drag risk-adjusted returns</li><li>TSLA at 317x P/E; MU far above consensus target</li></ul>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══ ALERTS ═══ -->
+<div class="panel" id="panel-alerts">
+<div style="padding:0 20px 16px;" id="alerts-box"></div>
+</div>
+
+<!-- ═══ SUGGESTIONS ═══ -->
+<div class="panel" id="panel-suggestions">
+<div class="sugg-gap">
+  <h3>Your Portfolio Gaps</h3>
+  <p>Your portfolio is 47% concentrated in AI/semiconductors with zero exposure to several major sectors. Adding positions in these areas would reduce volatility and improve risk-adjusted returns.</p>
+  <div class="sugg-gap-tags">
+    <span class="sugg-gap-tag">Healthcare 0%</span>
+    <span class="sugg-gap-tag">Financials 0%</span>
+    <span class="sugg-gap-tag">Consumer Staples 0%</span>
+    <span class="sugg-gap-tag">Dividends 0%</span>
+    <span class="sugg-gap-tag">Energy 0%</span>
+    <span class="sugg-gap-tag">REITs 0%</span>
+  </div>
+</div>
+<div id="sugg-cards" class="sugg-grid"></div>
+</div>
+
+<!-- ═══ NEWS ═══ -->
+<div class="panel" id="panel-news">
+<p style="font-size:12px;color:var(--text4);margin:0 20px 12px;">Click any stock tag to open its profile. News updated May 18, 2026.</p>
+<div id="news-cards" class="news-grid"></div>
+</div>
+
+<div class="disclaimer">
+  <strong>Disclaimer:</strong> For informational purposes only — not financial advice. Prices fetched from Yahoo Finance via CORS proxy; may be delayed up to 15 min. Always do your own research.
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  THEME
+// ══════════════════════════════════════════
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute("data-theme") === "dark";
+  html.setAttribute("data-theme", isDark ? "light" : "dark");
+  document.getElementById("theme-icon").innerHTML = isDark ? "&#9790;" : "&#9788;";
+  try { localStorage.setItem("theme", isDark ? "light" : "dark"); } catch(e){}
+}
+(function(){
+  try {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") { document.documentElement.setAttribute("data-theme","dark"); document.getElementById("theme-icon").innerHTML = "&#9788;"; }
+  } catch(e){}
+})();
+
+// ══════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════
+const portfolio = [
+  { ticker:"NBIS", name:"Nebius Group", shares:3.7218, costBasis:866.44, price:211.93, target:240, fwdPE:"N/M", trailPE:"364x", risk:"Very High", riskN:4, score:6, action:"Hold/Trim", ac:"b-trim", note:"Trim to 8-10%; 684% revenue growth but adj. net loss $100M. $9.3B cash. Guided $3-3.4B FY26 rev. EBITDA margin 32% improving. Pre-profit AI cloud with real traction but sky-high valuation.", sector:"AI Infrastructure", change:0, changePct:0 },
+  { ticker:"IREN", name:"IREN Limited", shares:11.802, costBasis:705.52, price:53.85, target:70, fwdPE:"N/M", trailPE:"55x", risk:"Very High", riskN:4, score:5, action:"Hold", ac:"b-hold", note:"Pivoting from BTC mining to AI cloud. $3.4B NVIDIA contract, scaling to 140K GPUs by EOY. Q3 rev missed by 34%. $3.1B contracted ARR. Microsoft partnership. Massive capex ahead but 41% adj. EBITDA margin.", sector:"AI Infrastructure", change:0, changePct:0 },
+  { ticker:"NVDA", name:"NVIDIA Corp", shares:2.658, costBasis:626.26, price:227.15, target:272, fwdPE:"30x", trailPE:"45x", risk:"Moderate", riskN:2, score:8, action:"Buy More", ac:"b-buy", note:"FY26 revenue $215.9B (+65%). FCF $96.7B. ROE 76.3%. D/E 0.05. 37 analysts Strong Buy. BofA PT $320. Best-in-class AI infrastructure with fortress balance sheet.", sector:"Semiconductors", change:0, changePct:0 },
+  { ticker:"TSLA", name:"Tesla Inc", shares:1.136, costBasis:511.18, price:421.61, target:398, fwdPE:"160x", trailPE:"317x", risk:"High", riskN:3, score:4, action:"Trim", ac:"b-sell", note:"Q1 rev $22.4B (+16%). EPS +52% YoY. But FCF projected -$8.5B in FY26. 317x P/E. Trading above consensus target. Hold consensus (27% Buy, 35% Hold, 16% Sell). CEO distraction risk.", sector:"EV / Auto", change:0, changePct:0 },
+  { ticker:"MU", name:"Micron Tech", shares:0.535, costBasis:421.62, price:719.90, target:496, fwdPE:"8x", trailPE:"36x", risk:"Moderate", riskN:2, score:7, action:"Hold", ac:"b-hold", note:"TTM revenue $58.1B. Net income $24.1B. Profit margin 41.5%. EPS jumped 7.8x YoY. Forward P/E of 8x is genuinely cheap if HBM demand sustains. Price far exceeds analyst consensus. Mizuho PT $740.", sector:"Semiconductors", change:0, changePct:0 },
+  { ticker:"GRPN", name:"Groupon", shares:15.209, costBasis:264.94, price:17.74, target:20, fwdPE:"N/M", trailPE:"N/M", risk:"High", riskN:3, score:3, action:"Sell", ac:"b-sell", note:"Q1 rev $117.2M (flat YoY). Net loss $12.9M. FCF guided $60M+ for FY26. Debt restructuring to 2030 convertible notes. Goldman PT $10 (Sell). Decade-long decline. No competitive moat.", sector:"E-Commerce", change:0, changePct:0 },
+  { ticker:"GOOGL", name:"Alphabet", shares:0.648, costBasis:259.62, price:396.78, target:408, fwdPE:"27x", trailPE:"31x", risk:"Low", riskN:1, score:8, action:"Buy More", ac:"b-buy", note:"Q1 rev $109.9B (+22%). Net income $62.6B (+81%). FCF $73.3B. Operating margin 32.7%. 60 Buy / 7 Hold / 0 Sell. $180-190B capex guidance for AI. Best risk/reward in mega-cap tech.", sector:"Mega-Cap Tech", change:0, changePct:0 },
+  { ticker:"QBTS", name:"D-Wave Quantum", shares:10.647, costBasis:231.90, price:20.45, target:33, fwdPE:"N/M", trailPE:"N/M", risk:"Very High", riskN:4, score:3, action:"Hold (sm)", ac:"b-hold", note:"Q1 rev $2.86M (-81% YoY). Deeply unprofitable. But bookings surged. 13 Buy / 1 Hold ratings. Quantum computing is pre-commercial. Pure speculation at acceptable 3.8% position size.", sector:"Quantum Computing", change:0, changePct:0 },
+  { ticker:"SNDK", name:"SanDisk", shares:0.164, costBasis:228.29, price:1404.09, target:1409, fwdPE:"25x", trailPE:"~35x", risk:"Moderate", riskN:2, score:6, action:"Hold", ac:"b-hold", note:"Up 550%+ in 2026 on NAND recovery. 13 Buy / 3 Hold. Bernstein PT $1,700. Some analysts cautious — RBC, Barclays, Wells Fargo won't upgrade. Set mental stop-loss ~$1,200.", sector:"Semiconductors", change:0, changePct:0 },
+  { ticker:"VOO", name:"Vanguard S&P 500", shares:0.942, costBasis:648.73, price:678.44, target:null, fwdPE:"21x", trailPE:"~24x", risk:"Low", riskN:1, score:8, action:"Buy More", ac:"b-buy", note:"S&P 500 index ETF. 0.03% expense ratio. Broad exposure to 500 largest US companies. Core portfolio foundation — increase to 15-20% over time.", sector:"Broad Market ETF", change:0, changePct:0 },
+  { ticker:"VTI", name:"Vanguard Total Mkt", shares:1.320, costBasis:485.77, price:364.47, target:null, fwdPE:"20x", trailPE:"~23x", risk:"Low", riskN:1, score:8, action:"Buy More", ac:"b-buy", note:"Total US stock market ETF. 0.03% ER. Includes small/mid-cap exposure beyond S&P 500. Excellent long-term compounder. Consider consolidating with VOO — you don't need both.", sector:"Broad Market ETF", change:0, changePct:0 },
+  { ticker:"QQQ", name:"Invesco Nasdaq 100", shares:0.645, costBasis:465.65, price:709.00, target:null, fwdPE:"25x", trailPE:"~30x", risk:"Low", riskN:1, score:7, action:"Hold", ac:"b-hold", note:"Nasdaq 100 ETF. 0.20% ER. Tech-heavy with 18.3% 10-yr avg return. Overlaps significantly with your individual tech picks (NVDA, GOOGL, TSLA, etc). Consider QQQM for lower fees.", sector:"Tech ETF", change:0, changePct:0 },
+  { ticker:"VXUS", name:"Vanguard Intl Stock", shares:3.790, costBasis:326.00, price:83.31, target:null, fwdPE:"14x", trailPE:"~16x", risk:"Low", riskN:1, score:7, action:"Buy More", ac:"b-buy", note:"Total international stock ETF. 0.07% ER. Your only non-US exposure at ~5%. International markets trade at significant discount to US. Double allocation to 10%+ for proper diversification.", sector:"International ETF", change:0, changePct:0 },
+];
+
+const watchlist = [
+  { ticker:"AAPL", name:"Apple", price:298.21, target:304, entry:"$220-230", entryMid:225, risk:"Low", riskN:1, action:"Buy Now", ac:"b-buy", note:"Services revenue +16% YoY. Trailing P/E 35.5x, fwd 33.4x. TTM rev $451B. Wedbush PT $400 (bull case). AI integration catalyst. 28 analysts: Buy consensus.", sector:"Mega-Cap Tech", fwdPE:"33x", trailPE:"35.5x", change:0, changePct:0 },
+  { ticker:"MRVL", name:"Marvell Tech", price:105, target:121, entry:"$95-105", entryMid:100, risk:"Moderate", riskN:2, action:"Buy Now", ac:"b-buy", note:"42% rev growth, 81% earnings growth projected. Custom AI chip opportunity. 32 analysts: Buy consensus. Complements NVDA without overlap.", sector:"Semiconductors", fwdPE:"~35x", trailPE:"~60x", change:0, changePct:0 },
+  { ticker:"LITE", name:"Lumentum", price:1053, target:1100, entry:"$850-900", entryMid:875, risk:"Moderate", riskN:2, action:"Wait", ac:"b-wait", note:"+180% YTD. Q3 rev $808M. Non-GAAP gross margin 47.9%. EPS $2.37. Record EML shipments. 50%+ EML unit growth expected. Jefferies PT $1,200. Stretched but fundamentals strong.", sector:"Optical/Photonics", fwdPE:"~40x", trailPE:"~55x", change:0, changePct:0 },
+  { ticker:"LUNR", name:"Intuitive Machines", price:18, target:22, entry:"$14-16", entryMid:15, risk:"Very High", riskN:4, action:"Wait", ac:"b-wait", note:"Space exploration company. Limited operating history. Operating losses. 10 analysts: Buy consensus. Need sustained growth to reach profitability. High execution risk.", sector:"Space", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+  { ticker:"AMZN", name:"Amazon", price:263.36, target:312, entry:"$250-270", entryMid:260, risk:"Low", riskN:1, action:"Buy Now", ac:"b-buy", note:"AWS + advertising powerhouse. ~27x forward earnings. 41 analysts: Buy consensus. $312 avg target = 18% upside. Fills e-commerce/cloud gap in your portfolio.", sector:"Mega-Cap Tech", fwdPE:"27x", trailPE:"~35x", change:0, changePct:0 },
+  { ticker:"META", name:"Meta Platforms", price:612.00, target:840, entry:"$580-620", entryMid:600, risk:"Moderate", riskN:2, action:"Buy Now", ac:"b-buy", note:"Q1 rev $56.3B (+33%). 18.5x fwd P/E. 96% Buy rating. Down 23% from $796 high on $125B capex fears. $840 avg target = 37% upside. Rare entry in mega-cap.", sector:"Mega-Cap Tech", fwdPE:"18.5x", trailPE:"~25x", change:0, changePct:0 },
+  { ticker:"AMD", name:"AMD", price:430.98, target:450, entry:"$380-420", entryMid:400, risk:"Moderate", riskN:2, action:"Hold Off", ac:"b-hold", note:"Doubled from EOY 2025. Goldman upgraded to Buy at $450. Agentic AI tailwinds. Strong datacenter GPU growth. But buying at Goldman's exact target — wait for pullback.", sector:"Semiconductors", fwdPE:"~30x", trailPE:"~50x", change:0, changePct:0 },
+  { ticker:"MSFT", name:"Microsoft", price:408.00, target:569, entry:"$390-410", entryMid:400, risk:"Low", riskN:1, action:"Buy Now", ac:"b-buy", note:"37 analysts: Strong Buy. $569 avg target = 40% upside. Azure AI cloud dominance. Most defensive FAANG name. Day range $401-412.", sector:"Mega-Cap Tech", fwdPE:"~32x", trailPE:"~36x", change:0, changePct:0 },
+  { ticker:"LCID", name:"Lucid Motors", price:3.00, target:2, entry:"—", entryMid:null, risk:"Very High", riskN:4, action:"Avoid", ac:"b-avoid", note:"Consensus Sell. PT $2.10 (range $1-7). Burning cash. No profitability path. EV market brutally competitive. 15 analysts mostly bearish.", sector:"EV / Auto", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+  { ticker:"TNYA", name:"Tenaya Therapeutics", price:3.00, target:5, entry:"$2-3", entryMid:2.5, risk:"Very High", riskN:4, action:"Wait", ac:"b-wait", note:"Strong Buy consensus. PT $4-5. Speculative biotech with binary clinical trial outcomes. Only for high-risk tolerance.", sector:"Biotech", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+  { ticker:"PTRN", name:"Patreon", price:null, target:null, entry:"—", entryMid:null, risk:"High", riskN:3, action:"Research", ac:"b-hold", note:"Limited analyst coverage. Need more data before making a call.", sector:"Tech", fwdPE:"—", trailPE:"—", change:0, changePct:0 },
+  { ticker:"DRAM", name:"DRAM", price:null, target:null, entry:"—", entryMid:null, risk:"High", riskN:3, action:"Research", ac:"b-hold", note:"Limited coverage. If memory play, already heavy exposure via MU and SNDK.", sector:"Semiconductors", fwdPE:"—", trailPE:"—", change:0, changePct:0 },
+  { ticker:"QQQM", name:"Invesco Nasdaq 100", price:233, target:null, entry:"Any", entryMid:null, risk:"Low", riskN:1, action:"Buy (vs QQQ)", ac:"b-buy", note:"Identical to QQQ but 0.15% expense ratio vs 0.20%. If buying Nasdaq 100 exposure, use this instead.", sector:"Tech ETF", fwdPE:"25x", trailPE:"~30x", change:0, changePct:0 },
+  { ticker:"SMH", name:"VanEck Semis ETF", price:580, target:null, entry:"$500-520", entryMid:510, risk:"Moderate", riskN:2, action:"Wait", ac:"b-wait", note:"Near 52-week high ($581). Up 56% from March lows. Good semi ETF but you already have very heavy semiconductor exposure individually.", sector:"Semiconductor ETF", fwdPE:"~25x", trailPE:"~30x", change:0, changePct:0 },
+  { ticker:"VUG", name:"Vanguard Growth", price:430, target:null, entry:"$400-430", entryMid:415, risk:"Low", riskN:1, action:"Buy Now", ac:"b-buy", note:"Broad large-cap growth ETF. Cleaner way to get growth exposure without individual stock risk. Low expense ratio.", sector:"Growth ETF", fwdPE:"~28x", trailPE:"~32x", change:0, changePct:0 },
+  { ticker:"MGK", name:"Vanguard Mega Growth", price:370, target:null, entry:"—", entryMid:null, risk:"Low", riskN:1, action:"Redundant", ac:"b-hold", note:"Heavy overlap with VUG and QQQ. Pick one growth ETF, not three.", sector:"Growth ETF", fwdPE:"~28x", trailPE:"~32x", change:0, changePct:0 },
+  { ticker:"QTUM", name:"Defiance Quantum", price:98, target:null, entry:"$80-90", entryMid:85, risk:"High", riskN:3, action:"Wait", ac:"b-wait", note:"Quantum computing ETF. You already hold QBTS individually. Only add for broader quantum/AI exposure.", sector:"Thematic ETF", fwdPE:"—", trailPE:"—", change:0, changePct:0 },
+  { ticker:"RGTI", name:"Rigetti Computing", price:19, target:30, entry:"$14-16", entryMid:15, risk:"Very High", riskN:4, action:"Wait", ac:"b-wait", note:"Q1 rev $4.4M (+200% YoY). Still tiny revenue. Moderate Buy consensus. $30 PT = 57% upside. Heavy operating losses and spending.", sector:"Quantum Computing", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+  { ticker:"QS", name:"QuantumScape", price:7, target:8, entry:"—", entryMid:null, risk:"Very High", riskN:4, action:"Avoid", ac:"b-avoid", note:"100% Hold ratings (zero Buys). Solid-state batteries years from commercialization. $904M liquidity is the only positive. $11M Q1 billings.", sector:"Battery Tech", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+  { ticker:"IONQ", name:"IonQ", price:51.95, target:64, entry:"$45-50", entryMid:47.5, risk:"Very High", riskN:4, action:"Wait", ac:"b-wait", note:"Record Q1 rev $64.7M (+755% YoY). Raised FY26 guidance to $260-270M. 12 analysts: Strong Buy. Best quantum pure-play but extreme valuation.", sector:"Quantum Computing", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+  { ticker:"GEV", name:"GE Vernova", price:1090.53, target:1207, entry:"$1,000-1,070", entryMid:1035, risk:"Moderate", riskN:2, action:"Buy Now", ac:"b-buy", note:"AI power demand play. 28 Buy / 0 Sell. Avg PT $1,207. Goldman PT $1,328. Jefferies PT $1,350. Energy infrastructure is next leg of AI trade.", sector:"Energy/Power", fwdPE:"~35x", trailPE:"~45x", change:0, changePct:0 },
+  { ticker:"OKLO", name:"Oklo Inc", price:67.21, target:101, entry:"$55-65", entryMid:60, risk:"Very High", riskN:4, action:"Wait", ac:"b-wait", note:"Pre-revenue nuclear startup. NVIDIA + Los Alamos partnership. NRC approved Aurora design criteria. JPMorgan PT $83 (Neutral). 18 analysts: Strong Buy. $101 avg PT = 45% upside.", sector:"Nuclear Energy", fwdPE:"N/M", trailPE:"N/M", change:0, changePct:0 },
+];
+
+const alerts = [
+  { ticker:"NVDA", event:"Q1 FY2027 Earnings Report", date:"2026-05-20", sentiment:"bullish", note:"BofA target $320; consensus Strong Buy; AI demand accelerating" },
+  { ticker:"MU", event:"Q3 FY2026 Earnings Report", date:"2026-06-25", sentiment:"bullish", note:"Mizuho PT $740; HBM demand narrative intact; watch for guidance" },
+  { ticker:"GOOGL", event:"Q2 2026 Earnings Report", date:"2026-07-28", sentiment:"bullish", note:"AI Search monetization progress; cloud growth trajectory" },
+  { ticker:"NBIS", event:"Q2 2026 Earnings Report", date:"2026-08-12", sentiment:"bullish", note:"Watch for ARR ramp toward $7-9B target; adj. EBITDA margin expansion" },
+  { ticker:"TSLA", event:"Q2 2026 Earnings Report", date:"2026-07-22", sentiment:"uncertain", note:"Robotaxi / FSD update critical at 317x P/E; FCF trajectory" },
+  { ticker:"IREN", event:"Q4 FY2026 Earnings Report", date:"2026-08-20", sentiment:"uncertain", note:"140K GPU deployment milestones; Microsoft contract progress" },
+  { ticker:"QBTS", event:"Q2 2026 Earnings Report", date:"2026-08-07", sentiment:"bearish", note:"Revenue -81% in Q1; need bookings conversion to stabilize" },
+  { ticker:"GRPN", event:"Q2 2026 Earnings Report", date:"2026-08-05", sentiment:"uncertain", note:"Debt restructuring completion; need positive EBITDA trajectory" },
+  { ticker:"META", event:"Capex Update / Q2 Earnings", date:"2026-07-30", sentiment:"bullish", note:"$125B capex fears may be priced in; any moderation = catalyst" },
+  { ticker:"—", event:"FOMC Rate Decision", date:"2026-06-17", sentiment:"uncertain", note:"Hawkish signal pressures all high-multiple growth names across portfolio" },
+  { ticker:"—", event:"FOMC Rate Decision", date:"2026-07-29", sentiment:"uncertain", note:"Second decision window; market likely pricing in by then" },
+  { ticker:"IONQ", event:"Q2 2026 Earnings", date:"2026-08-06", sentiment:"uncertain", note:"Watch for revenue guidance after record $64.7M Q1" },
+  { ticker:"SNDK", event:"Q4 FY2026 Earnings", date:"2026-07-31", sentiment:"bullish", note:"NAND pricing cycle; enterprise SSD demand from AI buildout" },
+];
+
+// ══════════════════════════════════════════
+//  PRICE FETCHING
+// ══════════════════════════════════════════
+const PROXIES=[u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`];
+let dataSource="cached";
+let fetchAborted=false;
+async function fetchQuote(t){const u=`https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=1d`;for(const px of PROXIES){try{const r=await fetch(px(u),{signal:AbortSignal.timeout(10000)});if(!r.ok)continue;const d=await r.json(),m=d.chart.result[0].meta;return{price:m.regularMarketPrice,prev:m.chartPreviousClose||m.previousClose};}catch(e){continue;}}return null;}
+function applyQuote(t,q){const apply=item=>{item.price=q.price;item.change=+(q.price-q.prev).toFixed(2);item.changePct=+((q.price-q.prev)/q.prev*100).toFixed(2);};const pi=portfolio.find(p=>p.ticker===t);if(pi){apply(pi);pi.value=+(pi.shares*q.price).toFixed(2);}const wi=watchlist.find(w=>w.ticker===t);if(wi)apply(wi);}
+async function fetchAllPrices(){const btn=document.getElementById("btn-refresh"),dot=document.getElementById("status-dot"),stxt=document.getElementById("status-text");btn.disabled=true;fetchAborted=false;btn.textContent="⏳ Refreshing...";btn.onclick=()=>{fetchAborted=true;};dot.className="status-dot dot-cached";stxt.textContent="Fetching...";const allT=[...new Set([...portfolio.map(p=>p.ticker),...watchlist.filter(w=>w.price!==null).map(w=>w.ticker)])];let succeeded=new Set();let remaining=[...allT];let attempt=0;const MAX_ATTEMPTS=20;const BATCH_SIZE=4;while(remaining.length>0&&attempt<MAX_ATTEMPTS&&!fetchAborted){attempt++;const delay=attempt===1?0:Math.min(2000*(attempt-1),15000);if(delay>0){stxt.textContent=`Retry ${attempt-1} — waiting ${(delay/1000).toFixed(0)}s for ${remaining.length} remaining...`;await new Promise(r=>setTimeout(r,delay));if(fetchAborted)break;}const stillFailing=[];for(let i=0;i<remaining.length;i+=BATCH_SIZE){if(fetchAborted)break;const batch=remaining.slice(i,i+BATCH_SIZE);const res=await Promise.allSettled(batch.map(fetchQuote));batch.forEach((t,j)=>{if(res[j].status==="fulfilled"&&res[j].value){applyQuote(t,res[j].value);succeeded.add(t);}else{stillFailing.push(t);}});stxt.textContent=`${succeeded.size}/${allT.length} captured${attempt>1?' (retry '+attempt+')':''}... ${remaining.length-succeeded.size+stillFailing.length>0?'⏳':'✅'}`;renderAll();}remaining=stillFailing;}const tot=portfolio.reduce((s,p)=>s+(p.shares*p.price),0);portfolio.forEach(p=>{p.value=+(p.shares*p.price).toFixed(2);p.alloc=+(p.value/tot*100).toFixed(2);});const ok=succeeded.size;dataSource=ok>0?"live":"cached";dot.className=ok===allT.length?"status-dot dot-live":ok>0?"status-dot dot-cached":"status-dot dot-error";if(fetchAborted){stxt.textContent=`Stopped — ${ok}/${allT.length} captured`;}else if(ok===allT.length){stxt.textContent=`✅ All ${ok} stocks captured — live`;}else{stxt.textContent=`⚠️ ${ok}/${allT.length} captured (${remaining.length} unavailable after ${attempt} attempts)`;}btn.disabled=false;btn.textContent="Refresh Prices";btn.onclick=()=>fetchAllPrices();updateTS();renderAll();}
+function updateTS(){document.getElementById("ts").textContent=new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",second:"2-digit"});}
+
+// ══════════════════════════════════════════
+//  RENDER HELPERS
+// ══════════════════════════════════════════
+const $f=v=>v!=null?"$"+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):"—";
+const $s=v=>v!=null?"$"+Number(v).toLocaleString():"—";
+const rB=r=>`<span class="badge ${r==='Low'?'risk-low':r==='Moderate'?'risk-mod':r==='High'?'risk-high':'risk-vhigh'}">${r}</span>`;
+const sB=s=>`<span class="sc ${s>=7?'sc-g':s>=5?'sc-y':'sc-r'}">${s}</span>`;
+function chg(c,p){if(!c&&!p)return'<span style="color:var(--text4)">—</span>';const s=c>=0?"+":"";return`<span class="${c>=0?'up':'down'}" style="font-size:12px;font-weight:600">${s}${$f(Math.abs(c))}<br>${s}${p.toFixed(2)}%</span>`;}
+function upsidePct(pr,tgt){if(!tgt||!pr)return"—";const v=((tgt-pr)/pr*100).toFixed(1);return`<span class="${+v>=0?'up':'down'}" style="font-weight:600">${+v>=0?'+':''}${v}%</span>`;}
+function glCalc(item){const cur=item.shares*item.price;const gl=cur-item.costBasis;const pct=((cur-item.costBasis)/item.costBasis*100).toFixed(1);const s=gl>=0?"+":"";return`<span class="${gl>=0?'up':'down'}" style="font-weight:600">${s}${$f(Math.abs(gl))}<br>${s}${pct}%</span>`;}
+function vsE(pr,mid){if(!pr||!mid)return"—";if(pr<=mid)return`<span class="up" style="font-weight:600">At/Below</span>`;return`<span class="down" style="font-weight:600">${((pr-mid)/mid*100).toFixed(1)}% above</span>`;}
+
+// ══════════════════════════════════════════
+//  STOCK DETAIL MODAL
+// ══════════════════════════════════════════
+function openModal(ticker) {
+  const p = portfolio.find(x=>x.ticker===ticker);
+  const w = watchlist.find(x=>x.ticker===ticker);
+  const item = p || w;
+  if (!item) return;
+  const isPort = !!p;
+
+  document.getElementById("m-ticker").textContent = item.ticker;
+  document.getElementById("m-name").textContent = item.name + (item.sector ? " — " + item.sector : "");
+
+  const curVal = isPort ? item.shares * item.price : null;
+  const gl = isPort ? curVal - item.costBasis : null;
+  const glPct = isPort ? ((gl / item.costBasis) * 100).toFixed(1) : null;
+
+  let html = '<div class="detail-grid">';
+  // Price
+  html += `<div class="detail-item"><div class="dl">Current Price</div><div class="dv">${item.price ? $f(item.price) : '—'}</div></div>`;
+  // Day change
+  html += `<div class="detail-item"><div class="dl">Day Change</div><div class="dv">${item.change ? `<span class="${item.change>=0?'up':'down'}">${item.change>=0?'+':''}${$f(Math.abs(item.change))} (${item.change>=0?'+':''}${item.changePct.toFixed(2)}%)</span>` : '—'}</div></div>`;
+
+  if (isPort) {
+    html += `<div class="detail-item"><div class="dl">Shares</div><div class="dv">${item.shares.toFixed(4)}</div></div>`;
+    html += `<div class="detail-item"><div class="dl">Market Value</div><div class="dv">${$f(curVal)}</div></div>`;
+    html += `<div class="detail-item"><div class="dl">Cost Basis</div><div class="dv">${$f(item.costBasis)}</div></div>`;
+    html += `<div class="detail-item"><div class="dl">Total Gain/Loss</div><div class="dv"><span class="${gl>=0?'up':'down'}">${gl>=0?'+':''}${$f(Math.abs(gl))} (${gl>=0?'+':''}${glPct}%)</span></div></div>`;
+    html += `<div class="detail-item"><div class="dl">Allocation</div><div class="dv">${item.alloc ? item.alloc.toFixed(1)+'%' : '—'}</div></div>`;
+    html += `<div class="detail-item"><div class="dl">Avg Cost/Share</div><div class="dv">${$f(item.costBasis / item.shares)}</div></div>`;
+  } else {
+    html += `<div class="detail-item"><div class="dl">Entry Price</div><div class="dv">${item.entry || '—'}</div></div>`;
+    html += `<div class="detail-item"><div class="dl">vs Entry</div><div class="dv">${vsE(item.price, item.entryMid)}</div></div>`;
+  }
+
+  // Analyst target
+  html += `<div class="detail-item"><div class="dl">Analyst Target</div><div class="dv">${item.target ? $s(item.target) : '—'}</div></div>`;
+  html += `<div class="detail-item"><div class="dl">Upside to Target</div><div class="dv">${item.target && item.price ? upsidePct(item.price, item.target) : '—'}</div></div>`;
+
+  // Valuation
+  html += `<div class="detail-item"><div class="dl">Forward P/E</div><div class="dv">${item.fwdPE || '—'}</div></div>`;
+  html += `<div class="detail-item"><div class="dl">Trailing P/E</div><div class="dv">${item.trailPE || '—'}</div></div>`;
+
+  // Risk & Score
+  html += `<div class="detail-item"><div class="dl">Risk Level</div><div class="dv">${rB(item.risk)}</div></div>`;
+  html += `<div class="detail-item"><div class="dl">Score</div><div class="dv">${item.score != null ? sB(item.score) + ' / 10' : '—'}</div></div>`;
+
+  // Action
+  html += `<div class="detail-item full"><div class="dl">Recommendation</div><div class="dv"><span class="badge ${item.ac}" style="font-size:14px;padding:4px 14px;">${item.action}</span></div></div>`;
+  html += '</div>';
+
+  // Analysis note
+  html += `<div class="detail-section"><h4>Analysis</h4><div class="detail-note">${item.note}</div></div>`;
+
+  // Related alerts
+  const related = alerts.filter(a => a.ticker === item.ticker);
+  if (related.length) {
+    html += `<div class="detail-section"><h4>Upcoming Events</h4>`;
+    const today = new Date(); today.setHours(0,0,0,0);
+    related.forEach(a => {
+      const d = new Date(a.date+"T00:00:00");
+      const diff = Math.ceil((d-today)/86400000);
+      const dateStr = d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+      let cd = diff<0?"Past":diff===0?"TODAY":diff<=7?diff+" day"+(diff>1?"s":""):Math.ceil(diff/7)+" wk"+(Math.ceil(diff/7)>1?"s":"");
+      html += `<div class="alert-card ${a.sentiment}" style="margin-top:8px;">
+        <div class="alert-head"><span>${a.event}</span><span><span class="alert-date">${dateStr}</span><span class="countdown">${cd}</span></span></div>
+        <div>${a.note} <span class="badge ${a.sentiment==='bullish'?'b-buy':a.sentiment==='bearish'?'b-sell':'b-hold'}">${a.sentiment}</span></div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  document.getElementById("m-body").innerHTML = html;
+  document.getElementById("modal-overlay").classList.add("open");
+}
+function closeModal() { document.getElementById("modal-overlay").classList.remove("open"); }
+document.addEventListener("keydown", e => { if(e.key==="Escape") closeModal(); });
+
+// ══════════════════════════════════════════
+//  RENDER TABLES
+// ══════════════════════════════════════════
+function renderP(data){
+  document.getElementById("tb-p").innerHTML=data.map(r=>`<tr class="clickable" onclick="openModal('${r.ticker}')">
+    <td><span class="ticker">${r.ticker}</span><span class="ticker-sub">${r.name}</span></td>
+    <td>${r.shares.toFixed(2)}</td>
+    <td>${r.alloc?r.alloc.toFixed(1):'—'}%</td>
+    <td>${$s(Math.round(r.shares*r.price))}</td>
+    <td style="font-weight:600">${$f(r.price)}</td>
+    <td>${chg(r.change,r.changePct)}</td>
+    <td>${$s(Math.round(r.costBasis))}</td>
+    <td>${glCalc(r)}</td>
+    <td>${r.target?$s(r.target):"—"}</td>
+    <td>${upsidePct(r.price,r.target)}</td>
+    <td>${rB(r.risk)}</td>
+    <td>${sB(r.score)}</td>
+    <td><span class="badge ${r.ac}">${r.action}</span><br><span style="font-size:11px;color:var(--text4)">${r.note.split('.')[0]}</span></td>
+  </tr>`).join("");
+}
+function renderW(data){
+  document.getElementById("tb-w").innerHTML=data.map(r=>`<tr class="clickable" onclick="openModal('${r.ticker}')">
+    <td><span class="ticker">${r.ticker}</span><span class="ticker-sub">${r.name}</span></td>
+    <td style="font-weight:600">${r.price?$f(r.price):"—"}</td>
+    <td>${chg(r.change,r.changePct)}</td>
+    <td>${r.target?$s(r.target):"—"}</td>
+    <td>${r.entry}</td>
+    <td>${vsE(r.price,r.entryMid)}</td>
+    <td>${upsidePct(r.price,r.target)}</td>
+    <td>${rB(r.risk)}</td>
+    <td><span class="badge ${r.ac}">${r.action}</span></td>
+    <td style="font-size:11px;color:var(--text4);max-width:180px">${r.note.split('.')[0]}</td>
+  </tr>`).join("");
+}
+function renderKPIs(){const total=portfolio.reduce((s,p)=>s+p.shares*p.price,0);const totalCost=portfolio.reduce((s,p)=>s+p.costBasis,0);const dayChg=portfolio.reduce((s,p)=>s+p.change*p.shares,0);const totalGL=total-totalCost;const totalPct=((totalGL/totalCost)*100).toFixed(1);document.getElementById("kpi-val").textContent="$"+Math.round(total).toLocaleString();const de=document.getElementById("kpi-day");if(dataSource==="live"){const s=dayChg>=0?"+":"";de.innerHTML=`<span class="${dayChg>=0?'up':'down'}">${s}$${Math.abs(dayChg).toFixed(2)}</span>`;}else{de.textContent="—";}const te=document.getElementById("kpi-total");const sg=totalGL>=0?"+":"";te.innerHTML=`<span class="${totalGL>=0?'up':'down'}">${sg}$${Math.abs(totalGL).toFixed(0)} (${sg}${totalPct}%)</span>`;}
+function renderAll(){renderP(portfolio);renderW(watchlist);renderKPIs();}
+
+// ══════════════════════════════════════════
+//  ALERTS
+// ══════════════════════════════════════════
+function renderAlerts(){const box=document.getElementById("alerts-box");const today=new Date();today.setHours(0,0,0,0);const sorted=[...alerts].sort((a,b)=>new Date(a.date)-new Date(b.date));box.innerHTML=sorted.map(a=>{const d=new Date(a.date+"T00:00:00");const diff=Math.ceil((d-today)/86400000);let cd="";if(diff<0)cd=`<span class="countdown" style="color:var(--text4)">Past</span>`;else if(diff===0)cd=`<span class="countdown" style="color:#ef4444">TODAY</span>`;else if(diff<=7)cd=`<span class="countdown">${diff} day${diff>1?'s':''} away</span>`;else if(diff<=30)cd=`<span class="countdown">${Math.ceil(diff/7)} weeks away</span>`;else cd=`<span class="countdown" style="color:var(--text4)">${Math.ceil(diff/7)} weeks</span>`;const dateStr=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});return`<div class="alert-card ${a.sentiment}" style="cursor:${a.ticker!=='—'?'pointer':'default'}" ${a.ticker!=='—'?`onclick="openModal('${a.ticker}')"`:''}><div class="alert-head"><span>${a.ticker} — ${a.event}</span><span><span class="alert-date">${dateStr}</span>${cd}</span></div><div>${a.note} <span class="badge ${a.sentiment==='bullish'?'b-buy':a.sentiment==='bearish'?'b-sell':'b-hold'}">${a.sentiment}</span></div></div>`;}).join("");}
+renderAlerts();
+
+// ══════════════════════════════════════════
+//  CHARTS
+// ══════════════════════════════════════════
+const chartFontColor = () => getComputedStyle(document.documentElement).getPropertyValue('--text3').trim() || '#64748b';
+new Chart(document.getElementById("ch-sec"),{type:"doughnut",data:{labels:["AI/Semis (47%)","ETFs (32%)","Mega-Cap (13%)","Speculative (8%)"],datasets:[{data:[47,32,13,8],backgroundColor:["#6366f1","#22c55e","#3b82f6","#f59e0b"],borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{font:{size:11},padding:8,color:chartFontColor()}}}}});
+new Chart(document.getElementById("ch-risk"),{type:"doughnut",data:{labels:["Low (5)","Moderate (4)","High (2)","Very High (3)"],datasets:[{data:[5,4,2,3],backgroundColor:["#22c55e","#eab308","#f87171","#dc2626"],borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{font:{size:11},padding:8,color:chartFontColor()}}}}});
+new Chart(document.getElementById("ch-score"),{type:"bar",data:{labels:portfolio.map(p=>p.ticker),datasets:[{data:portfolio.map(p=>p.score),backgroundColor:portfolio.map(p=>p.score>=7?"#22c55e":p.score>=5?"#eab308":"#ef4444"),borderRadius:4}]},options:{responsive:true,indexAxis:"y",scales:{x:{min:0,max:10,grid:{color:"rgba(128,128,128,.15)"},ticks:{color:chartFontColor()}},y:{grid:{display:false},ticks:{color:chartFontColor()}}},plugins:{legend:{display:false}}}});
+
+// ══════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════
+document.querySelectorAll(".tab").forEach(tab=>{tab.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));tab.classList.add("active");document.getElementById("panel-"+tab.dataset.tab).classList.add("active");});});
+
+// ══════════════════════════════════════════
+//  SORTING
+// ══════════════════════════════════════════
+let ss={};
+function setupSort(tid,data,fn){document.querySelectorAll(`#${tid} thead th[data-col]`).forEach(th=>{th.addEventListener("click",()=>{const c=th.dataset.col,dir=ss[tid+c]==="asc"?"desc":"asc";ss[tid+c]=dir;th.closest("thead").querySelectorAll("th").forEach(h=>h.classList.remove("sorted"));th.classList.add("sorted");th.querySelector(".sa").textContent=dir==="asc"?"▲":"▼";const s=[...data].sort((a,b)=>{let va=a[c],vb=b[c];if(c==="gainLoss"){va=a.shares*a.price-a.costBasis;vb=b.shares*b.price-b.costBasis;}if(c==="upside"){va=a.target?((a.target-a.price)/a.price):-999;vb=b.target?((b.target-b.price)/b.price):-999;}if(c==="vsEntry"){va=a.entryMid?((a.price-a.entryMid)/a.entryMid):999;vb=b.entryMid?((b.price-b.entryMid)/b.entryMid):999;}if(typeof va==="string"&&typeof vb==="string")return dir==="asc"?va.localeCompare(vb):vb.localeCompare(va);va=typeof va==="number"?va:-Infinity;vb=typeof vb==="number"?vb:-Infinity;return dir==="asc"?va-vb:vb-va;});fn(s);});});}
+setupSort("tbl-p",portfolio,renderP);
+setupSort("tbl-w",watchlist,renderW);
+
+// ══════════════════════════════════════════
+//  SUGGESTIONS DATA
+// ══════════════════════════════════════════
+const suggestions = [
+  { ticker:"JNJ", name:"Johnson & Johnson", sector:"Healthcare", price:165, target:190, fwdPE:"15x", divYield:"3.1%", rating:"Buy", ratingCount:22, why:"<strong>Fills your healthcare gap.</strong> Dividend Aristocrat — 62 consecutive years of increases. Diversified across pharma, medical devices, and consumer health. Low correlation to your AI-heavy portfolio. Defensive ballast during market pullbacks.", upside:15, risk:"Low" },
+  { ticker:"LLY", name:"Eli Lilly", sector:"Healthcare", price:1005, target:1210, fwdPE:"58x", divYield:"0.7%", rating:"Strong Buy", ratingCount:28, why:"<strong>Best-in-class pharma growth.</strong> Leader in GLP-1 weight-loss drugs (Zepbound, Mounjaro). Medicare $50/mo cap is a massive tailwind. Alzheimer's drug Kisunla approved in EU. Revenue growing 30%+ YoY. Premium valuation but category-defining.", upside:20, risk:"Moderate" },
+  { ticker:"ABBV", name:"AbbVie", sector:"Healthcare", price:210, target:235, fwdPE:"16x", divYield:"3.4%", rating:"Buy", ratingCount:24, why:"<strong>Dividend King with growth.</strong> 50+ consecutive years of dividend increases. Skyrizi projected to become 2nd best-selling drug globally by 2030 (~$26.6B revenue). Successfully navigating Humira patent cliff. Attractive valuation at 16x forward.", upside:12, risk:"Low" },
+  { ticker:"UNH", name:"UnitedHealth Group", sector:"Healthcare", price:382, target:390, fwdPE:"17x", divYield:"1.5%", rating:"Buy", ratingCount:26, why:"<strong>Healthcare infrastructure monopoly.</strong> Largest US health insurer + Optum services. Q1 earnings beat with guidance raise. Value-based care adoption is a structural tailwind. Defensive growth with consistent execution.", upside:2, risk:"Low" },
+  { ticker:"JPM", name:"JPMorgan Chase", sector:"Financials", price:295, target:345, fwdPE:"13x", divYield:"2.0%", rating:"Buy", ratingCount:33, why:"<strong>Gold standard in banking.</strong> Fills your zero-financials gap. Strong capital markets revenue, diversified model. Payout ratio under 30% with consistent dividend growth. Benefits from higher interest rate environment.", upside:17, risk:"Low" },
+  { ticker:"V", name:"Visa Inc", sector:"Financials", price:340, target:393, fwdPE:"28x", divYield:"0.7%", rating:"Strong Buy", ratingCount:22, why:"<strong>Global payments duopoly.</strong> Asset-light business model with 65%+ operating margins. Cross-border travel recovery and digital payment secular growth. Extremely high ROIC. Near-monopoly competitive position.", upside:16, risk:"Low" },
+  { ticker:"MA", name:"Mastercard", sector:"Financials", price:560, target:649, fwdPE:"32x", divYield:"0.5%", rating:"Strong Buy", ratingCount:26, why:"<strong>Visa's equally dominant twin.</strong> 29% upside to consensus target. Benefiting from cash-to-digital conversion globally. Higher international exposure than Visa. Consistently beats earnings estimates.", upside:16, risk:"Low" },
+  { ticker:"PEP", name:"PepsiCo", sector:"Consumer Staples", price:155, target:170, fwdPE:"20x", divYield:"3.5%", rating:"Buy", ratingCount:21, why:"<strong>Recession-proof cash machine.</strong> More than beverages — Frito-Lay, Quaker, Gatorade. 54 consecutive years of dividend growth. Low beta counterbalances your high-beta AI stocks. Uncorrelated to tech cycles.", upside:10, risk:"Low" },
+  { ticker:"COST", name:"Costco", sector:"Consumer Staples", price:1013, target:1091, fwdPE:"48x", divYield:"0.5%", rating:"Buy", ratingCount:30, why:"<strong>Best-in-class retailer.</strong> Membership model creates recurring revenue moat. 93% renewal rate. Special dividends add to yield. Consumer spending insights through Walmart and Target earnings this week.", upside:8, risk:"Low" },
+  { ticker:"BRK.B", name:"Berkshire Hathaway", sector:"Conglomerate", price:490, target:510, fwdPE:"~21x", divYield:"0%", rating:"Buy", ratingCount:4, why:"<strong>Ultimate portfolio diversifier.</strong> Built-in exposure to insurance, energy, railroads, consumer brands — all sectors you're missing. $325B+ cash hoard for opportunistic buying. Zero debt risk. Warren Buffett's succession plan intact with Greg Abel.", upside:4, risk:"Low" },
+  { ticker:"XLV", name:"Health Care Select SPDR", sector:"Healthcare ETF", price:150, target:null, fwdPE:"17x", divYield:"1.4%", rating:"Buy", ratingCount:null, why:"<strong>One-stop healthcare exposure.</strong> If picking individual healthcare stocks feels risky, XLV gives you JNJ, LLY, UNH, ABBV, MRK, and PFE in one trade. 0.09% expense ratio. Instant sector diversification.", upside:null, risk:"Low" },
+  { ticker:"SCHD", name:"Schwab US Dividend", sector:"Dividend ETF", price:28, target:null, fwdPE:"16x", divYield:"3.5%", rating:"Buy", ratingCount:null, why:"<strong>Dividend income + quality screen.</strong> Holds 100 high-dividend stocks screened for quality (cash flow, ROE, dividend growth). Fills your income gap. 0.06% ER. Sectors: financials, healthcare, consumer staples, energy — exactly what you're missing.", upside:null, risk:"Low" },
+];
+
+const newsItems = [
+  { date:"May 18, 2026", headline:"Nasdaq and S&P 500 Sink as Friday Jitters Continue Into Fresh Trading Week", body:"Markets opened lower as rising Treasury yields (10-year hit 4.55%, highest in a year) and oil price volatility weigh on risk assets. Tech stocks leading the decline with investors cautious ahead of NVIDIA earnings on Wednesday.", impact:"high", tickers:["NVDA","QQQ","GOOGL","TSLA","META","AAPL"], source:"TheStreet" },
+  { date:"May 18, 2026", headline:"NVIDIA Earnings Wednesday — KeyBanc Raises Target to $300", body:"KeyBanc raised its price target on NVDA to $300 (from $275) ahead of Q1 FY2027 earnings. Expects strong results driven by 150,000-200,000 additional Blackwell GPU shipments QoQ. BofA maintains $320 target. This is the most anticipated earnings report of the week.", impact:"high", tickers:["NVDA","NBIS","IREN","MU","AMD","MRVL"], source:"CNBC" },
+  { date:"May 18, 2026", headline:"Oil Surges to $110/bbl as Iran Ceasefire Talks Stall After UAE Drone Strike", body:"Brent crude jumped 3.4% to ~$110 after a drone strike at a nuclear power plant in the UAE disrupted ceasefire negotiations. Trump said he's 'running out of patience' with Iran and claims Xi agreed Tehran must reopen the Strait of Hormuz. Higher oil = higher inflation = pressure on growth stocks.", impact:"high", tickers:["TSLA","VOO","VTI","GEV","OKLO"], source:"NBC News" },
+  { date:"May 18, 2026", headline:"Treasury Yields Spike — 30-Year Hits Highest Level in a Year", body:"Rising war-related inflation concerns pushed 10-year yield to 4.55% (+9bps). Higher yields make future cash flows worth less, disproportionately hurting high-P/E growth and pre-profit companies. Your most vulnerable holdings are NBIS, IREN, QBTS, and TSLA.", impact:"high", tickers:["NBIS","IREN","QBTS","TSLA","SNDK","IONQ","RGTI"], source:"Schwab" },
+  { date:"May 15, 2026", headline:"Trump-Xi Summit Ends Without Trade Breakthrough — Chipmakers Dump", body:"The meeting between President Trump and Chinese President Xi concluded May 15 with no concrete trade deal. Intel fell 6%, AMD dropped 5.7%, and Micron lost 6.6%. The 15% global import tariff under Section 122 remains in effect. Treasury Secretary Bessent suggests tariffs could return to prior levels by early July.", impact:"high", tickers:["MU","NVDA","AMD","SNDK","MRVL","SMH","GOOGL"], source:"Bloomberg" },
+  { date:"May 18, 2026", headline:"Walmart and Target Earnings This Week — Consumer Spending Health Check", body:"Target reports Wednesday, Walmart Thursday. These results will reveal whether inflation is hurting consumer spending. Weak results could drag consumer discretionary stocks while boosting expectations for rate cuts. Strong results support the soft-landing narrative.", impact:"med", tickers:["VOO","VTI","PEP","COST","AMZN"], source:"CNBC" },
+  { date:"Ongoing", headline:"Supreme Court Struck Down IEEPA Tariffs — Temporary 15% Duty via Section 122", body:"In January 2026, the Supreme Court ruled 6-3 that broad IEEPA tariffs were unlawful. The administration imposed a temporary 15% global import duty for 150 days under Section 122 (max allowed). This expires around late July. Markets are watching whether a new tariff regime follows.", impact:"med", tickers:["TSLA","AAPL","AMZN","VOO","VTI"], source:"U.S. Bank" },
+  { date:"Jun 17, 2026", headline:"FOMC Rate Decision — Hawkish Signals Would Pressure Growth Names", body:"The next Federal Reserve interest rate decision is June 17. With oil above $100 and inflation sticky, markets are pricing in a potential rate hike rather than cuts. A hawkish Fed would hit high-multiple growth stocks hardest — particularly pre-profit names like NBIS, IREN, QBTS, and quantum stocks.", impact:"high", tickers:["NBIS","IREN","QBTS","TSLA","IONQ","RGTI","QQQ"], source:"Federal Reserve" },
+  { date:"May 15, 2026", headline:"LiveRamp Surges 27% on Publicis Acquisition — Ad-Tech M&A Heating Up", body:"Publicis Groupe will acquire LiveRamp (RAMP) in an all-cash $2.5B deal. This signals growing appetite for ad-tech and data infrastructure companies. Could benefit Meta and Alphabet's advertising businesses as the sector consolidates.", impact:"low", tickers:["META","GOOGL"], source:"CNBC" },
+  { date:"Ongoing", headline:"AI Capex Boom Continues — $125B+ Spend From Hyperscalers in 2026", body:"Combined AI capital expenditure from Microsoft, Meta, Google, and Amazon expected to exceed $350B in 2026. This directly benefits NVIDIA (GPU supplier), NBIS & IREN (AI cloud infrastructure), MU & SNDK (memory for AI), and MRVL (custom AI chips). But rising capex fears caused Meta to drop 23% from highs.", impact:"med", tickers:["NVDA","NBIS","IREN","MU","SNDK","MRVL","META","MSFT","AMZN","GOOGL"], source:"Bloomberg" },
+];
+
+// ══════════════════════════════════════════
+//  RENDER SUGGESTIONS
+// ══════════════════════════════════════════
+function renderSuggestions() {
+  document.getElementById("sugg-cards").innerHTML = suggestions.map(s => `
+    <div class="sugg-card">
+      <div class="sugg-hdr">
+        <div>
+          <div class="sugg-ticker">${s.ticker} <span style="font-size:13px;font-weight:400;color:var(--text3)">${s.name}</span></div>
+        </div>
+        <span class="sugg-sector-tag">${s.sector}</span>
+      </div>
+      <div class="sugg-stats">
+        <div class="sugg-stat"><div class="sl">Price</div><div class="sv">${s.price?'$'+s.price.toLocaleString():'—'}</div></div>
+        <div class="sugg-stat"><div class="sl">Target</div><div class="sv">${s.target?'$'+s.target.toLocaleString():'—'}</div></div>
+        <div class="sugg-stat"><div class="sl">Upside</div><div class="sv">${s.upside?'<span class="up">+'+s.upside+'%</span>':'—'}</div></div>
+        <div class="sugg-stat"><div class="sl">Fwd P/E</div><div class="sv">${s.fwdPE}</div></div>
+        <div class="sugg-stat"><div class="sl">Div Yield</div><div class="sv" style="color:#22c55e">${s.divYield}</div></div>
+        <div class="sugg-stat"><div class="sl">Rating</div><div class="sv" style="font-size:12px"><span class="badge b-buy">${s.rating}</span></div></div>
+      </div>
+      <div class="sugg-why">${s.why}</div>
+    </div>
+  `).join("");
+}
+
+// ══════════════════════════════════════════
+//  RENDER NEWS
+// ══════════════════════════════════════════
+function renderNews() {
+  document.getElementById("news-cards").innerHTML = newsItems.map(n => `
+    <div class="news-card">
+      <div class="news-meta">
+        <span class="news-date">${n.date} &bull; ${n.source}</span>
+        <span class="news-impact impact-${n.impact}">${n.impact==='high'?'HIGH IMPACT':n.impact==='med'?'MEDIUM':'LOW'}</span>
+      </div>
+      <div class="news-headline">${n.headline}</div>
+      <div class="news-body">${n.body}</div>
+      <div class="news-tickers">
+        <span style="font-size:11px;color:var(--text4);margin-right:4px;">Affects:</span>
+        ${n.tickers.map(t => {
+          const inPort = portfolio.find(p=>p.ticker===t);
+          const inWatch = watchlist.find(w=>w.ticker===t);
+          const inSugg = suggestions.find(s=>s.ticker===t);
+          const clickable = inPort || inWatch;
+          const arrow = inPort ? ' (held)' : inWatch ? ' (watch)' : inSugg ? ' (sugg)' : '';
+          return clickable
+            ? '<span class="news-ticker-tag" onclick="openModal(\''+t+'\')">'+t+arrow+'</span>'
+            : '<span class="news-ticker-tag" style="cursor:default">'+t+arrow+'</span>';
+        }).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+updateTS(); renderAll(); renderSuggestions(); renderNews();
+setTimeout(()=>fetchAllPrices(),1500);
+setInterval(()=>{const h=new Date().getHours(),d=new Date().getDay();if(d>=1&&d<=5&&h>=9&&h<=16)fetchAllPrices();},300000);
+</script>
+</body>
+</html>
